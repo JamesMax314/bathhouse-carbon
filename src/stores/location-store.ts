@@ -1,8 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import { SEED_LOCATIONS } from '@/lib/data/locations'
-import type { Location, ReportingPeriod } from '@/types'
+import type { ReportingPeriod } from '@/types'
 
 const DEFAULT_PERIOD: ReportingPeriod = {
   id: 'period-2024',
@@ -13,20 +12,15 @@ const DEFAULT_PERIOD: ReportingPeriod = {
 }
 
 interface LocationStore {
-  locations: Location[]
   selectedLocationId: string
   reportingPeriod: ReportingPeriod
-  selectedLocation: () => Location | undefined
   setSelectedLocationId: (id: string) => void
   setReportingPeriod: (period: ReportingPeriod) => void
 }
 
-export const useLocationStore = create<LocationStore>((set, get) => ({
-  locations: SEED_LOCATIONS,
-  selectedLocationId: SEED_LOCATIONS[0].id,
+export const useLocationStore = create<LocationStore>((set) => ({
+  selectedLocationId: '',
   reportingPeriod: DEFAULT_PERIOD,
-  selectedLocation: () =>
-    get().locations.find((l) => l.id === get().selectedLocationId),
   setSelectedLocationId: (id) => set({ selectedLocationId: id }),
   setReportingPeriod: (period) => set({ reportingPeriod: period }),
 }))

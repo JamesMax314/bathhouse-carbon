@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useLocationStore } from '@/stores/location-store'
-import { SEED_LOCATIONS } from '@/lib/data/locations'
 import type { Location, LocationType } from '@/types'
 
 const TYPE_LABELS: Record<LocationType, string> = {
@@ -27,21 +26,21 @@ function groupByType(locations: Location[]): Record<LocationType, Location[]> {
   }
 }
 
-export function LocationSelector() {
+export function LocationSelector({ locations }: { locations: Location[] }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const { selectedLocationId, setSelectedLocationId, selectedLocation } =
-    useLocationStore()
+  const { selectedLocationId, setSelectedLocationId } = useLocationStore()
 
-  const current = selectedLocation()
-  const groups = groupByType(SEED_LOCATIONS)
+  // Initialise to the first location once real DB data arrives
+  useEffect(() => {
+    if (locations.length > 0 && !locations.find((l) => l.id === selectedLocationId)) {
+      setSelectedLocationId(locations[0].id)
+    }
+  }, [locations, selectedLocationId, setSelectedLocationId])
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
@@ -54,6 +53,9 @@ export function LocationSelector() {
     setOpen(false)
   }
 
+  const current = locations.find((l) => l.id === selectedLocationId)
+  const groups = groupByType(locations)
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -64,15 +66,10 @@ export function LocationSelector() {
       >
         {current && (
           <span
-            className={[
-              'size-2 rounded-full shrink-0',
-              TYPE_DOT_COLOUR[current.type],
-            ].join(' ')}
+            className={['size-2 rounded-full shrink-0', TYPE_DOT_COLOUR[current.type]].join(' ')}
           />
         )}
-        <span className="font-medium">
-          {current?.name ?? 'Select location'}
-        </span>
+        <span className="font-medium">{current?.name ?? 'Loading…'}</span>
         {current?.region && (
           <span className="text-white/50">— {current.region}</span>
         )}
@@ -106,16 +103,13 @@ export function LocationSelector() {
                     ].join(' ')}
                   >
                     <span
-                      className={[
-                        'size-2 rounded-full shrink-0',
-                        TYPE_DOT_COLOUR[loc.type],
-                      ].join(' ')}
+                      className={['size-2 rounded-full shrink-0', TYPE_DOT_COLOUR[loc.type]].join(
+                        ' ',
+                      )}
                     />
                     <span className="flex-1 font-medium">{loc.name}</span>
                     {loc.region && (
-                      <span className="text-bh-text-hint text-xs">
-                        {loc.region}
-                      </span>
+                      <span className="text-bh-text-hint text-xs">{loc.region}</span>
                     )}
                     <CompletionPill pct={loc.completionPct} />
                   </button>
@@ -132,7 +126,9 @@ export function LocationSelector() {
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
-      className={['size-3.5 text-white/50 transition-transform', open ? 'rotate-180' : ''].join(' ')}
+      className={['size-3.5 text-white/50 transition-transform', open ? 'rotate-180' : ''].join(
+        ' ',
+      )}
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
