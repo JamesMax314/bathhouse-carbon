@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      String   @default("INPUTTER") // INPUTTER | REVIEWER | EXECUTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedLocations  Location[]        @relation("UserLocations")
+  emissionEntries    EmissionEntry[]
+  refrigerantEntries RefrigerantEntry[]
+  auditLogs          AuditLog[]
+  lockedPeriods      ReportingPeriod[]
+}
+
+// ─── Location ─────────────────────────────────────────────────────────────────
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   @default("SHOP") // MANUFACTURING | SHOP | ORGANISATION
+  address     String?
+  region      String?
+  floorAreaM2 Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignedUsers      User[]             @relation("UserLocations")
+  emissionEntries    EmissionEntry[]
+  refrigerantEntries RefrigerantEntry[]
+  stockSyncBatches   StockSyncBatch[]
+  reductionTargets   ReductionTarget[]
+}
+
+// ─── ReportingPeriod ──────────────────────────────────────────────────────────
+
+model ReportingPeriod {
+  id          String    @id @default(cuid())
+  label       String    // e.g. "2024–2025"
+  startDate   DateTime
+  endDate     DateTime
+  status      String    @default("OPEN") // OPEN | LOCKED
+  lockedAt    DateTime?
+  lockedById  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lockedBy           User?              @relation(fields: [lockedById], references: [id])
+  emissionEntries    EmissionEntry[]
+  refrigerantEntries RefrigerantEntry[]
+  stockSyncBatches   StockSyncBatch[]
+  commutingSurveys   CommutingSurvey[]
+  reductionTargets   ReductionTarget[]
+}
+
+// ─── EmissionCategory ─────────────────────────────────────────────────────────
+
+model EmissionCategory {
+  id          String  @id @default(cuid())
+  // SCOPE1_GAS | SCOPE1_VEHICLE_FUEL | SCOPE1_PROCESS_HEAT | SCOPE1_REFRIGERANT | SCOPE1_GENERATOR
+  // SCOPE2_ELECTRICITY
+  // SCOPE3_INGREDIENTS | SCOPE3_PACKAGING | SCOPE3_FREIGHT_INBOUND | SCOPE3_FREIGHT_OUTBOUND
+  // SCOPE3_FREIGHT_INTERSITE | SCOPE3_WASTE | SCOPE3_BUSINESS_TRAVEL | SCOPE3_COMMUTING
+  // SCOPE3_USE_OF_PRODUCTS | SCOPE3_END_OF_LIFE
+  code        String  @unique
+  scope       Int     // 1, 2, or 3
+  name        String  // human-readable label
+  description String?
+  unit        String  // default input unit (kWh, litres, kg, km)
+
+  emissionEntries EmissionEntry[]
+  emissionFactors EmissionFactor[]
+}
+
+// ─── EmissionFactor ───────────────────────────────────────────────────────────
+
+model EmissionFactor {
+  id            String    @id @default(cuid())
+  factorName    String
+  categoryId    String
+  unit          String    // kWh | kg | km | litre | m³
+  kgCO2ePerUnit Float
+  source        String    // e.g. "DEFRA 2024 Table 1a"
+  effectiveFrom DateTime
+  effectiveTo   DateTime? // null = currently active
+  createdAt     DateTime  @default(now())
+
+  category             EmissionCategory      @relation(fields: [categoryId], references: [id])
+  ingredientFactorMaps IngredientFactorMap[]
+  emissionEntries      EmissionEntry[]
+}
+
+// ─── EmissionEntry ────────────────────────────────────────────────────────────
+
+model EmissionEntry {
+  id                String   @id @default(cuid())
+  locationId        String
+  reportingPeriodId String
+  categoryId        String
+  enteredById       String
+  emissionFactorId  String?  // factor locked to this record at calculation time
+
+  activityValue    Float
+  unit             String
+  tCO2e            Float
+  notes            String?
+  status           String   @default("DRAFT")    // DRAFT | COMPLETE | APPROVED
+  dataSource       String   @default("MANUAL")   // MANUAL | AUTO | SURVEY | IMPORTED
+  dataQuality      String   @default("PRIMARY")  // PRIMARY | ESTIMATED | MODELLED
+  evidenceRef      String?  // file reference, invoice number, meter ID, etc.
+
+  // Scope 2 market-based fields (populated for SCOPE2_ELECTRICITY only)
+  supplierName     String?
+  isREGOBacked     Boolean?
+  tCO2eMarketBased Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  location        Location         @relation(fields: [locationId], references: [id])
+  reportingPeriod ReportingPeriod  @relation(fields: [reportingPeriodId], references: [id])
+  category        EmissionCategory @relation(fields: [categoryId], references: [id])
+  enteredBy       User             @relation(fields: [enteredById], references: [id])
+  emissionFactor  EmissionFactor?  @relation(fields: [emissionFactorId], references: [id])
+  auditLogs       AuditLog[]
+}
+
+// ─── RefrigerantEntry ─────────────────────────────────────────────────────────
+// Separate from EmissionEntry — per-unit F-gas records with GWP-based calculation
+
+model RefrigerantEntry {
+  id                String   @id @default(cuid())
+  locationId        String
+  reportingPeriodId String
+  enteredById       String
+
+  unitDescription String  // e.g. "Display unit 1 — LG freezer"
+  refrigerantType String  // e.g. "R404A", "R290"
+  gwp             Int     // GWP value from IPCC AR6
+  topUpMassKg     Float
+  tCO2e           Float   // topUpMassKg × gwp / 1000
+  isHighGWP       Boolean // true if gwp > 2000 — triggers UI alert
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  location        Location        @relation(fields: [locationId], references: [id])
+  reportingPeriod ReportingPeriod @relation(fields: [reportingPeriodId], references: [id])
+  enteredBy       User            @relation(fields: [enteredById], references: [id])
+}
+
+// ─── CommutingSurvey ──────────────────────────────────────────────────────────
+
+model CommutingSurvey {
+  id                String    @id @default(cuid())
+  reportingPeriodId String
+  status            String    @default("DRAFT") // DRAFT | SENT | CLOSED
+  sentAt            DateTime?
+  closedAt          DateTime?
+  surveyUrl         String?   // token-based link distributed to staff
+
+  createdAt DateTime @default(now())
+
+  reportingPeriod ReportingPeriod    @relation(fields: [reportingPeriodId], references: [id])
+  responses       CommutingResponse[]
+}
+
+// ─── CommutingResponse ────────────────────────────────────────────────────────
+
+model CommutingResponse {
+  id         String  @id @default(cuid())
+  surveyId   String
+  staffName  String? // optional — survey may be anonymous
+  locationId String? // which Bath House site they work at
+
+  // car-petrol | car-diesel | car-hybrid | car-ev | train | bus | cycle | walk
+  transportMode     String
+  oneWayDistanceKm  Float
+  daysOnSitePerWeek Float
+  daysWFHPerWeek    Float
+  tCO2e             Float // distance × factor × 2 × daysOnSite × 46wks / 1000
+
+  submittedAt DateTime @default(now())
+
+  survey CommutingSurvey @relation(fields: [surveyId], references: [id])
+}
+
+// ─── StockSyncBatch ───────────────────────────────────────────────────────────
+
+model StockSyncBatch {
+  id                String    @id @default(cuid())
+  locationId        String
+  reportingPeriodId String
+
+  externalBatchId        String
+  sku                    String
+  productName            String?
+  batchDate              DateTime
+  quantityProduced       Float
+  quantityUnit           String    // units | kg
+  syncStatus             String    @default("PENDING") // PENDING | SYNCED | ERROR
+  hasUnmappedIngredients Boolean   @default(false)
+  syncedAt               DateTime?
+
+  createdAt DateTime @default(now())
+
+  location        Location            @relation(fields: [locationId], references: [id])
+  reportingPeriod ReportingPeriod     @relation(fields: [reportingPeriodId], references: [id])
+  ingredients     StockSyncIngredient[]
+}
+
+// ─── StockSyncIngredient ──────────────────────────────────────────────────────
+
+model StockSyncIngredient {
+  id          String  @id @default(cuid())
+  batchId     String
+  inciName    String  // INCI standardised ingredient name
+  weightKg    Float
+  tCO2e       Float?  // null until REVIEWER maps a factor
+  factorMapId String? // null until factor assigned
+
+  batch     StockSyncBatch       @relation(fields: [batchId], references: [id])
+  factorMap IngredientFactorMap? @relation(fields: [factorMapId], references: [id])
+}
+
+// ─── IngredientFactorMap ──────────────────────────────────────────────────────
+
+model IngredientFactorMap {
+  id           String   @id @default(cuid())
+  inciName     String   @unique // one active factor mapping per INCI name
+  factorId     String
+  assignedById String?  // User.id of the REVIEWER who assigned it
+  assignedAt   DateTime @default(now())
+  notes        String?
+
+  factor      EmissionFactor        @relation(fields: [factorId], references: [id])
+  ingredients StockSyncIngredient[]
+}
+
+// ─── AuditLog ─────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  emissionEntryId String?
+  userId          String
+  action          String   // CREATE | UPDATE | DELETE
+  tableName       String
+  recordId        String
+  previousValue   String?  // JSON snapshot of record before mutation
+  newValue        String?  // JSON snapshot of record after mutation
+  createdAt       DateTime @default(now())
+
+  emissionEntry EmissionEntry? @relation(fields: [emissionEntryId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+}
+
+// ─── ReductionTarget ──────────────────────────────────────────────────────────
+
+model ReductionTarget {
+  id                String   @id @default(cuid())
+  name              String   // e.g. "50% absolute reduction by 2030"
+  locationId        String?  // null = organisation-wide target
+  reportingPeriodId String
+  scope             Int?     // 1, 2, or 3; null = all scopes
+  targetType        String   @default("ABSOLUTE") // ABSOLUTE | INTENSITY
+  status            String   @default("ON_TRACK") // ON_TRACK | AT_RISK | MISSED | ACHIEVED
+  baselineYear      Int
+  baselineTCO2e     Float
+  targetPct         Float    // e.g. 30.0 = 30% reduction
+  targetTCO2e       Float    // baselineTCO2e × (1 − targetPct / 100)
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  location        Location?       @relation(fields: [locationId], references: [id])
+  reportingPeriod ReportingPeriod @relation(fields: [reportingPeriodId], references: [id])
+}
