@@ -1,26 +1,35 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Bath House brand colours */
+  --color-bh-charcoal: #2c2a25;
+  --color-bh-charcoal-mid: #3d3a34;
+  --color-bh-stone: #f7f4ef;
+  --color-bh-stone-mid: #f0ece5;
+  --color-bh-stone-dark: #e0dbd2;
+  --color-bh-sage: #7a9e6a;
+  --color-bh-sage-light: #e4ede1;
+  --color-bh-sand: #c4a87a;
+  --color-bh-terracotta: #c07a6a;
+  --color-bh-text-primary: #2c2a25;
+  --color-bh-text-muted: #7a7770;
+  --color-bh-text-hint: #9a9690;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Scope badge colours */
+  --color-scope1-bg: #f0ece6;
+  --color-scope1-text: #5a4535;
+  --color-scope2-bg: #e4ede1;
+  --color-scope2-text: #2e5028;
+  --color-scope3-bg: #e6ecf8;
+  --color-scope3-text: #2a3e7a;
+  --color-auto-bg: #ede6f8;
+  --color-auto-text: #3e2a7a;
+  --color-survey-bg: #fce8e8;
+  --color-survey-text: #7a2a2a;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bh-stone);
+  color: var(--color-bh-text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
 }
