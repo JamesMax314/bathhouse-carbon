@@ -771,12 +771,16 @@ describe('calculateIntensityRatio', () => {
 describe('calculateYearOnYearChange', () => {
   it('calculates a reduction correctly', () => {
     // 48 tCO2e down from 60 → −20%
-    expect(round(calculateYearOnYearChange(48, 60))).toBe(round((48 - 60) / 60 * 100))
+    const result = calculateYearOnYearChange(48, 60)
+    expect(result).not.toBeNull()
+    expect(round(result!)).toBe(round((48 - 60) / 60 * 100))
   })
 
   it('calculates an increase correctly', () => {
     // 72 tCO2e up from 60 → +20%
-    expect(round(calculateYearOnYearChange(72, 60))).toBe(round((72 - 60) / 60 * 100))
+    const result = calculateYearOnYearChange(72, 60)
+    expect(result).not.toBeNull()
+    expect(round(result!)).toBe(round((72 - 60) / 60 * 100))
   })
 
   it('returns null when the previous year total is zero (base year edge case)', () => {
