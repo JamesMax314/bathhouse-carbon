@@ -5,7 +5,7 @@ This document is the handover context for Claude Code. Read `CLAUDE.md` and
 already been built before starting new work.
 
 Current branch: `develop`
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 ---
 
@@ -181,7 +181,28 @@ bordered placeholder panel. Ready to be replaced with real content.
 
 ---
 
-## 9. What is NOT yet built (Phase 1 remaining work)
+## 9. tRPC API layer
+
+- [x] `@trpc/server`, `@trpc/client`, `@trpc/react-query`, `@tanstack/react-query`, `zod`, `superjson` installed
+- [x] `src/server/trpc.ts` — tRPC initialisation with Prisma context, `router` and `publicProcedure` exports
+- [x] `src/server/routers/locations.ts` — `list` (all active), `byId`
+- [x] `src/server/routers/emissions.ts` — `listByLocation`, `byId`, `create`, `update`, `delete`
+  - Locked-period guard on all mutations — throws `FORBIDDEN` if `ReportingPeriod.status === 'LOCKED'`
+- [x] `src/server/routers/factors.ts` — `listByCategory`, `activeForDate` (effectiveFrom date-range lookup)
+- [x] `src/server/routers/_app.ts` — root router combining all sub-routers; exports `AppRouter` type
+- [x] `src/app/api/trpc/[trpc]/route.ts` — Next.js App Router fetch handler (GET + POST)
+- [x] `src/lib/trpc/client.ts` — typed `trpc` React client via `createTRPCReact<AppRouter>`
+- [x] `src/components/providers/TRPCProvider.tsx` — `QueryClient` + tRPC provider (client component)
+- [x] `src/schemas/emission-entry.ts` — Zod `CreateEmissionEntrySchema` and `UpdateEmissionEntrySchema`
+- [x] `src/app/layout.tsx` updated — root layout wrapped with `TRPCProvider`
+
+**SuperJSON transformer** is configured on both server and client — handles `Date` serialisation end-to-end.
+
+**Key files:** `src/server/`, `src/schemas/emission-entry.ts`, `src/lib/trpc/`, `src/components/providers/TRPCProvider.tsx`
+
+---
+
+## 10. What is NOT yet built (Phase 1 remaining work)
 
 Ordered by project-brief priority:
 
@@ -202,9 +223,9 @@ Ordered by project-brief priority:
 - [ ] Sidebar with per-location emission category list and completion badges
 - [ ] Location-type banner (colour-coded)
 - [ ] Scope 1 / Scope 2 / site total stat cards
-- [ ] tRPC setup (`@trpc/server`, `@trpc/client`, `@trpc/next`)
-- [ ] tRPC routers: `emissions`, `locations`, `factors`, `survey`, `reports`
-- [ ] Zod schemas in `src/schemas/`
+- [x] tRPC setup (`@trpc/server`, `@trpc/client`, `@trpc/react-query`)
+- [~] tRPC routers: `emissions`, `locations`, `factors` done — `survey`, `reports` still pending
+- [~] Zod schemas in `src/schemas/` — `emission-entry.ts` done; location, survey, reporting-period schemas pending
 - [ ] React Hook Form integration
 
 ### Data entry — shop (Harrogate prototype)
@@ -240,8 +261,8 @@ Ordered by project-brief priority:
 - [ ] `src/lib/emission-factors/glec-freight.ts` — GLEC freight factors
 
 ### Emission factor library
-- [ ] `factors.ts` tRPC router — CRUD for REVIEWER
-- [ ] Factor lookup with `effectiveFrom` date matching
+- [~] `factors.ts` tRPC router — read queries done (`listByCategory`, `activeForDate`); REVIEWER CRUD (create/update) still pending
+- [x] Factor lookup with `effectiveFrom` date matching
 
 ### Audit log middleware
 - [ ] Prisma middleware that writes `AuditLog` on every `EmissionEntry` mutation
@@ -270,7 +291,7 @@ Ordered by project-brief priority:
 
 ---
 
-## 10. Architectural decisions made so far
+## 11. Architectural decisions made so far
 
 | Decision | Detail |
 |---|---|
@@ -279,5 +300,7 @@ Ordered by project-brief priority:
 | Completion % is category-coverage based | Any entry for a required category counts, regardless of DRAFT/COMPLETE status |
 | Refrigerant completeness uses `RefrigerantEntry` | Separate from `EmissionEntry` — checked independently in completion logic |
 | Applicable categories defined in code | `APPLICABLE_CATEGORIES` map in `src/lib/locations/completion.ts` — not in DB |
-| tRPC not yet installed | No `@trpc/*` packages in `package.json` — API layer is the next major piece |
+| tRPC v11 installed | `@trpc/server`, `@trpc/client`, `@trpc/react-query` — routers live in `src/server/routers/` |
+| SuperJSON transformer | Configured on both server and client — handles `Date` objects across the wire |
+| TRPCProvider wraps root layout | Client-side `QueryClient` + tRPC provider in `src/components/providers/TRPCProvider.tsx` |
 | Auth stubbed | No NextAuth.js yet — all pages accessible without login |
