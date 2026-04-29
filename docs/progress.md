@@ -5,7 +5,7 @@ This document is the handover context for Claude Code. Read `CLAUDE.md` and
 already been built before starting new work.
 
 Current branch: `develop`
-Last updated: 2026-04-29
+Last updated: 2026-04-29 (tRPC calculate + createEntry procedures)
 
 ---
 
@@ -186,14 +186,16 @@ bordered placeholder panel. Ready to be replaced with real content.
 - [x] `@trpc/server`, `@trpc/client`, `@trpc/react-query`, `@tanstack/react-query`, `zod`, `superjson` installed
 - [x] `src/server/trpc.ts` — tRPC initialisation with Prisma context, `router` and `publicProcedure` exports
 - [x] `src/server/routers/locations.ts` — `list` (all active), `byId`
-- [x] `src/server/routers/emissions.ts` — `listByLocation`, `byId`, `create`, `update`, `delete`
+- [x] `src/server/routers/emissions.ts` — `listByLocation`, `byId`, `create`, `update`, `delete`, plus:
+  - `calculateAndPreview` — `.query` that resolves versioned factor + computes tCO₂e, returns `{ tCO2e, tCO2eMarketBased?, factor }` with no DB write; safe to call on every keystroke for live preview
+  - `createEntry` — `.mutation` that runs the same calculation then persists `EmissionEntry` with `tCO2e` and `emissionFactorId` locked in; rejects if period is LOCKED
   - Locked-period guard on all mutations — throws `FORBIDDEN` if `ReportingPeriod.status === 'LOCKED'`
 - [x] `src/server/routers/factors.ts` — `listByCategory`, `activeForDate` (effectiveFrom date-range lookup)
 - [x] `src/server/routers/_app.ts` — root router combining all sub-routers; exports `AppRouter` type
 - [x] `src/app/api/trpc/[trpc]/route.ts` — Next.js App Router fetch handler (GET + POST)
 - [x] `src/lib/trpc/client.ts` — typed `trpc` React client via `createTRPCReact<AppRouter>`
 - [x] `src/components/providers/TRPCProvider.tsx` — `QueryClient` + tRPC provider (client component)
-- [x] `src/schemas/emission-entry.ts` — Zod `CreateEmissionEntrySchema` and `UpdateEmissionEntrySchema`
+- [x] `src/schemas/emission-entry.ts` — `CreateEmissionEntrySchema`, `UpdateEmissionEntrySchema`, and `EmissionEntryFormInputSchema` (uses `categoryCode` not `categoryId`; `tCO2e` computed server-side)
 - [x] `src/app/layout.tsx` updated — root layout wrapped with `TRPCProvider`
 
 **SuperJSON transformer** is configured on both server and client — handles `Date` serialisation end-to-end.
@@ -225,7 +227,7 @@ Ordered by project-brief priority:
 - [ ] Scope 1 / Scope 2 / site total stat cards
 - [x] tRPC setup (`@trpc/server`, `@trpc/client`, `@trpc/react-query`)
 - [~] tRPC routers: `emissions`, `locations`, `factors` done — `survey`, `reports` still pending
-- [~] Zod schemas in `src/schemas/` — `emission-entry.ts` done; location, survey, reporting-period schemas pending
+- [~] Zod schemas in `src/schemas/` — `emission-entry.ts` done (3 schemas); location, survey, reporting-period schemas pending
 - [ ] React Hook Form integration
 
 ### Data entry — shop (Harrogate prototype)
@@ -251,13 +253,18 @@ Ordered by project-brief priority:
 - [ ] Survey management tab (send link, track response rate)
 
 ### Calculation engine (`src/lib/calculations/`)
-- [ ] `scope1.ts` — gas, vehicle fuel, process heat, generator
-- [ ] `scope2.ts` — location-based and market-based electricity
-- [ ] `scope3.ts` — freight, waste, business travel
-- [ ] `refrigerants.ts` — GWP-based formula
-- [ ] `commuting.ts` — distance × factor × 2 × daysOnSite × 46 weeks / 1000
-- [ ] `calculations.test.ts` — unit tests for all functions (Vitest)
-- [ ] `src/lib/emission-factors/defra-2024.ts` — DEFRA factor constants
+- [x] `scope1.ts` — `calculateGasCombustion`, `calculateFuelCombustion`, `calculateGaseousFuelCombustion`
+- [x] `scope2.ts` — `calculateElectricityLocationBased`, `calculateElectricityMarketBased` (returns `{ tCO2e, zeroed }`)
+- [x] `scope3-ingredients.ts` — `calculateIngredientEmissions`, `calculateBatchIngredients` (returns unmapped list), `calculatePackagingEmissions`
+- [x] `scope3-freight.ts` — `calculateFreightEmissions` (tonne-km), `calculateParcelDelivery` (per-kg), `calculateFreightTotal`
+- [x] `scope3-waste.ts` — `calculateWasteEmissions`, `calculateWasteStreams`, `calculateWastewaterEmissions`
+- [x] `refrigerants.ts` — `calculateRefrigerantEmissions`, `isHighGWP`, `lookupGWP`; IPCC AR6 GWP constants for 9 common refrigerants
+- [x] `commuting.ts` — `calculateCommuterEmissions`, `calculateRosterEmissions`; DEFRA 2024 per-mode factors as constants
+- [x] `totals.ts` — `sumEntries`, `calculateOrganisationTotal` (dual Scope 2), `calculateIntensityRatio`, `calculateYearOnYearChange`
+- [x] `calculations.test.ts` — 112 Vitest unit tests; all use real DEFRA 2024 / IPCC AR6 values
+- [x] `src/lib/errors.ts` — `CalculationInputError` (with `field` property) and `EmissionFactorNotFoundError`
+- [x] `src/lib/emission-factors/resolver.ts` — `resolveEmissionFactor()` queries Prisma for versioned factor active at period end; throws `EmissionFactorNotFoundError`, never returns null
+- [ ] `src/lib/emission-factors/defra-2024.ts` — DEFRA factor constants (factors currently hardcoded in tests / seeded in DB)
 - [ ] `src/lib/emission-factors/glec-freight.ts` — GLEC freight factors
 
 ### Emission factor library
@@ -285,8 +292,9 @@ Ordered by project-brief priority:
 - [ ] Methodology notes and audit trail reference
 
 ### Testing
-- [ ] Vitest + React Testing Library setup (`npm run test` script missing)
-- [ ] Unit tests for all calculation functions
+- [x] Vitest installed and configured (`vitest.config.ts` with `@/` path alias); `npm run test` and `npm run test:watch` scripts added
+- [x] Unit tests for all calculation functions — 112 tests, all passing
+- [ ] React Testing Library setup (needed for form component tests)
 - [ ] Integration tests for tRPC procedures (`tests/integration/`)
 
 ---
@@ -304,3 +312,10 @@ Ordered by project-brief priority:
 | SuperJSON transformer | Configured on both server and client — handles `Date` objects across the wire |
 | TRPCProvider wraps root layout | Client-side `QueryClient` + tRPC provider in `src/components/providers/TRPCProvider.tsx` |
 | Auth stubbed | No NextAuth.js yet — all pages accessible without login |
+| Calculation functions are pure | No DB or API calls inside calculation modules — factor lookup handled separately by `resolver.ts` |
+| Scope 3 split into four files | `scope3-ingredients`, `scope3-freight`, `scope3-waste` (+ commuting is its own file) — matches brief's category structure |
+| `calculateBatchIngredients` returns unmapped list | Never silently omits unmapped INCI ingredients — caller must surface the alert |
+| Dual Scope 2 output | `calculateElectricityMarketBased` returns `{ tCO2e, zeroed }` so UI can distinguish REGO-zeroed from genuinely zero |
+| Form schema uses categoryCode not categoryId | `EmissionEntryFormInputSchema` accepts `'SCOPE1_GAS'` etc. — resolved to DB ID server-side in `resolveAndCalculate` |
+| calculateAndPreview is a query, not a mutation | Read-only, no side effects — safe for TanStack Query to call on input change for live CO₂e preview |
+| resolveAndCalculate is a shared helper, not a procedure | Both `calculateAndPreview` and `createEntry` call it — single source of truth for the factor-resolve + dispatch logic |
