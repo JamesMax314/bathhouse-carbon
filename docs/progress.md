@@ -5,7 +5,7 @@ This document is the handover context for Claude Code. Read `CLAUDE.md` and
 already been built before starting new work.
 
 Current branch: `develop`
-Last updated: 2026-04-29
+Last updated: 2026-04-29 (calculation engine)
 
 ---
 
@@ -251,13 +251,18 @@ Ordered by project-brief priority:
 - [ ] Survey management tab (send link, track response rate)
 
 ### Calculation engine (`src/lib/calculations/`)
-- [ ] `scope1.ts` — gas, vehicle fuel, process heat, generator
-- [ ] `scope2.ts` — location-based and market-based electricity
-- [ ] `scope3.ts` — freight, waste, business travel
-- [ ] `refrigerants.ts` — GWP-based formula
-- [ ] `commuting.ts` — distance × factor × 2 × daysOnSite × 46 weeks / 1000
-- [ ] `calculations.test.ts` — unit tests for all functions (Vitest)
-- [ ] `src/lib/emission-factors/defra-2024.ts` — DEFRA factor constants
+- [x] `scope1.ts` — `calculateGasCombustion`, `calculateFuelCombustion`, `calculateGaseousFuelCombustion`
+- [x] `scope2.ts` — `calculateElectricityLocationBased`, `calculateElectricityMarketBased` (returns `{ tCO2e, zeroed }`)
+- [x] `scope3-ingredients.ts` — `calculateIngredientEmissions`, `calculateBatchIngredients` (returns unmapped list), `calculatePackagingEmissions`
+- [x] `scope3-freight.ts` — `calculateFreightEmissions` (tonne-km), `calculateParcelDelivery` (per-kg), `calculateFreightTotal`
+- [x] `scope3-waste.ts` — `calculateWasteEmissions`, `calculateWasteStreams`, `calculateWastewaterEmissions`
+- [x] `refrigerants.ts` — `calculateRefrigerantEmissions`, `isHighGWP`, `lookupGWP`; IPCC AR6 GWP constants for 9 common refrigerants
+- [x] `commuting.ts` — `calculateCommuterEmissions`, `calculateRosterEmissions`; DEFRA 2024 per-mode factors as constants
+- [x] `totals.ts` — `sumEntries`, `calculateOrganisationTotal` (dual Scope 2), `calculateIntensityRatio`, `calculateYearOnYearChange`
+- [x] `calculations.test.ts` — 112 Vitest unit tests; all use real DEFRA 2024 / IPCC AR6 values
+- [x] `src/lib/errors.ts` — `CalculationInputError` (with `field` property) and `EmissionFactorNotFoundError`
+- [x] `src/lib/emission-factors/resolver.ts` — `resolveEmissionFactor()` queries Prisma for versioned factor active at period end; throws `EmissionFactorNotFoundError`, never returns null
+- [ ] `src/lib/emission-factors/defra-2024.ts` — DEFRA factor constants (factors currently hardcoded in tests / seeded in DB)
 - [ ] `src/lib/emission-factors/glec-freight.ts` — GLEC freight factors
 
 ### Emission factor library
@@ -285,8 +290,9 @@ Ordered by project-brief priority:
 - [ ] Methodology notes and audit trail reference
 
 ### Testing
-- [ ] Vitest + React Testing Library setup (`npm run test` script missing)
-- [ ] Unit tests for all calculation functions
+- [x] Vitest installed and configured (`vitest.config.ts` with `@/` path alias); `npm run test` and `npm run test:watch` scripts added
+- [x] Unit tests for all calculation functions — 112 tests, all passing
+- [ ] React Testing Library setup (needed for form component tests)
 - [ ] Integration tests for tRPC procedures (`tests/integration/`)
 
 ---
@@ -304,3 +310,7 @@ Ordered by project-brief priority:
 | SuperJSON transformer | Configured on both server and client — handles `Date` objects across the wire |
 | TRPCProvider wraps root layout | Client-side `QueryClient` + tRPC provider in `src/components/providers/TRPCProvider.tsx` |
 | Auth stubbed | No NextAuth.js yet — all pages accessible without login |
+| Calculation functions are pure | No DB or API calls inside calculation modules — factor lookup handled separately by `resolver.ts` |
+| Scope 3 split into four files | `scope3-ingredients`, `scope3-freight`, `scope3-waste` (+ commuting is its own file) — matches brief's category structure |
+| `calculateBatchIngredients` returns unmapped list | Never silently omits unmapped INCI ingredients — caller must surface the alert |
+| Dual Scope 2 output | `calculateElectricityMarketBased` returns `{ tCO2e, zeroed }` so UI can distinguish REGO-zeroed from genuinely zero |
